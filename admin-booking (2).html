@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Jadwal — Vianda MUA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#F7F0EA;
+    --panel:#FFFDFB;
+    --ink:#2E2320;
+    --plum:#6E2A3A;
+    --plum-deep:#4E1E2A;
+    --blush:#E7C7BE;
+    --gold:#B6873F;
+    --line:#E4D6CC;
+    --full:#D8CFC9;
+    --full-text:#8A7A72;
+    --libur:#C97B63;
+    --libur-text:#fff;
+    --admin:#3E6E5E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'Manrope', sans-serif;
+    padding:32px 20px 64px;
+    min-height:100vh;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+
+  .masthead{margin-bottom:28px;}
+  .masthead .kicker{
+    font-size:13px; letter-spacing:.04em; color:var(--admin);
+    font-weight:600; margin:0 0 6px;
+  }
+  .masthead h1{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(26px,4vw,36px);
+    line-height:1.1;
+    margin:0 0 10px;
+    color:var(--plum-deep);
+  }
+  .masthead p{
+    max-width:56ch; margin:0; color:#5B4A44; font-size:14.5px; line-height:1.6;
+  }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:24px;
+    margin-bottom:20px;
+  }
+
+  .cal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:18px;
+  }
+  .cal-head h2{
+    font-family:'Fraunces', serif; font-weight:500; font-size:20px; margin:0;
+    color:var(--plum-deep);
+  }
+  .cal-nav{display:flex; gap:6px;}
+  .cal-nav button{
+    width:32px;height:32px;border-radius:50%;
+    border:1px solid var(--line); background:var(--panel);
+    color:var(--plum); font-size:16px; cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .cal-nav button:hover{background:var(--blush);}
+
+  .weekdays{
+    display:grid; grid-template-columns:repeat(7,1fr);
+    margin-bottom:6px;
+  }
+  .weekdays span{
+    text-align:center; font-size:11.5px; color:#9A8A82; font-weight:600;
+  }
+
+  .days{
+    display:grid; grid-template-columns:repeat(7,1fr);
+    gap:5px;
+  }
+  .day{
+    position:relative;
+    aspect-ratio:1/1;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:10px;
+    font-size:14px;
+    cursor:pointer;
+    border:1px solid transparent;
+    background:transparent;
+    color:var(--ink);
+  }
+  .day.empty{cursor:default;}
+  .day.past{color:#C9BDB6; cursor:not-allowed;}
+  .day.open:hover{outline:2px solid var(--admin); outline-offset:-2px;}
+  .day.selected{ background:var(--admin); color:#fff; font-weight:600;}
+  .day.full{ background:var(--full); color:var(--full-text);}
+  .day.libur{ background:var(--libur); color:var(--libur-text);}
+  .day.today:not(.selected)::after{
+    content:''; position:absolute; bottom:5px; left:50%;
+    width:4px; height:4px; border-radius:50%;
+    background:var(--gold); transform:translateX(-50%);
+  }
+
+  .legend{
+    display:flex; gap:16px; margin-top:16px; flex-wrap:wrap;
+    font-size:12.5px; color:#5B4A44;
+  }
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .swatch{width:12px;height:12px;border-radius:4px; display:inline-block;}
+
+  .panel{margin-top:20px; border-top:1px solid var(--line); padding-top:18px;}
+  .panel h3{font-size:13px; color:var(--plum-deep); margin:0 0 10px; font-weight:700;}
+  .slot-empty{font-size:13px; color:#9A8A82; padding:6px 0;}
+
+  .action-row{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
+  .action-btn{
+    padding:8px 14px; border-radius:20px; font-size:12.5px; font-weight:700;
+    cursor:pointer; border:1px solid var(--line); background:#fff; color:var(--admin);
+    font-family:'Manrope', sans-serif;
+  }
+  .action-btn.active{background:var(--admin); color:#fff; border-color:var(--admin);}
+
+  .slot-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px;}
+  .slot{
+    padding:9px 6px; text-align:center; border-radius:9px;
+    border:1px solid var(--line); font-size:13px; cursor:pointer;
+    background:var(--panel);
+  }
+  .slot:hover{outline:2px solid var(--admin); outline-offset:-2px;}
+  .slot.taken{ background:var(--full); color:var(--full-text); text-decoration:line-through;}
+
+  .status-line{
+    font-size:12.5px; padding:9px 12px; border-radius:9px; margin-bottom:12px;
+    background:#EAF1EE; color:#26483C; display:none;
+  }
+  .status-line.show{display:block;}
+  .status-line.error{background:#FBE8E4; color:#8A2C1D;}
+
+  .lock-screen{
+    max-width:340px; margin:80px auto; text-align:center;
+  }
+  .lock-screen input{
+    width:100%; padding:12px; border-radius:10px; border:1px solid var(--line);
+    font-size:15px; text-align:center; margin:16px 0; box-sizing:border-box;
+  }
+  .lock-screen button{
+    width:100%; padding:12px; border-radius:10px; border:none;
+    background:var(--admin); color:#fff; font-weight:700; font-size:15px; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="lock-screen" id="lockScreen">
+  <h1 style="font-family:'Fraunces',serif; color:var(--plum-deep);">Admin Jadwal</h1>
+  <p style="color:#5B4A44; font-size:14px;">Masukkan kode admin untuk masuk.</p>
+  <input type="password" id="pinInput" placeholder="Kode admin">
+  <button id="pinSubmit">Masuk</button>
+  <p id="pinError" style="color:#B23A3A; font-size:13px; display:none;">Kode salah, coba lagi.</p>
+</div>
+
+<div class="wrap" id="mainApp" style="display:none;">
+
+  <div class="masthead">
+    <p class="kicker">Panel Admin</p>
+    <h1>Kelola jadwal booking</h1>
+    <p>Tandai tanggal yang sudah <strong>fix (DP diterima)</strong>, libur, atau atur jam yang sudah terisi. Perubahan langsung tersimpan dan otomatis muncul di halaman booking customer.</p>
+  </div>
+
+  <div id="statusLine" class="status-line"></div>
+
+  <div class="card">
+    <div class="cal-head">
+      <h2 id="calTitle">—</h2>
+      <div class="cal-nav">
+        <button id="prevMonth" aria-label="Bulan sebelumnya">‹</button>
+        <button id="nextMonth" aria-label="Bulan berikutnya">›</button>
+      </div>
+    </div>
+    <div class="weekdays">
+      <span>Min</span><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span>
+    </div>
+    <div class="days" id="daysGrid"></div>
+
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--admin)"></span> Dipilih</span>
+      <span><span class="swatch" style="background:transparent;border:1px solid var(--line)"></span> Tersedia</span>
+      <span><span class="swatch" style="background:var(--full)"></span> Penuh / Fix</span>
+      <span><span class="swatch" style="background:var(--libur)"></span> Libur</span>
+    </div>
+
+    <div class="panel" id="panelArea">
+      <p class="slot-empty">Pilih tanggal untuk mengatur statusnya.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cal-head">
+      <h2 style="font-size:18px;">Riwayat Booking</h2>
+      <button id="refreshHistory" class="action-btn">🔄 Muat Ulang</button>
+    </div>
+    <p style="font-size:12.5px; color:#8A7A72; margin:0 0 14px;">Data ini otomatis tersimpan ke Google Sheet setiap ada booking masuk. Buka Google Sheet kamu langsung untuk download sebagai Excel.</p>
+    <div id="historyArea"><p class="slot-empty">Memuat riwayat...</p></div>
+  </div>
+
+</div>
+
+<style>
+  .history-table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  .history-table th, .history-table td{
+    text-align:left; padding:8px 6px; border-bottom:1px solid var(--line);
+    vertical-align:top;
+  }
+  .history-table th{color:var(--plum-deep); font-size:11.5px; text-transform:uppercase; letter-spacing:.02em;}
+  .history-wrap{overflow-x:auto;}
+</style>
+
+<script>
+(function(){
+  // ==== KONEKSI KE DATABASE BERSAMA (Firebase Realtime Database) ====
+  // Ganti URL di bawah dengan URL Database dari Firebase Console kamu — HARUS SAMA
+  // dengan yang dipasang di file customer-booking.html
+  const FIREBASE_URL = "https://bookingmuatenin-default-rtdb.asia-southeast1.firebasedatabase.app";
+  // Kode untuk masuk ke panel admin ini. Ganti sesuka kamu.
+  const ADMIN_PIN = "admin123";
+  // =====================================================================
+
+  // ==== RIWAYAT BOOKING DARI GOOGLE SHEET (via Apps Script) ====
+  // HARUS SAMA PERSIS dengan yang dipasang di customer-booking.html
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxEgvQ82_ijzEuwRXiiPlN8ZE_i63dzf0Iw5qm290fXMgDlbMu36oPLZxMcWl8jlYE/exec";
+  const SHEET_SECRET_KEY = "vianda-secret-2026";
+  // =====================================================================
+
+
+  const ALL_SLOTS = ["02:00 - 04:00", "04:30 - 06:30"];
+  const monthNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  let viewYear = today.getFullYear();
+  let viewMonth = today.getMonth();
+  let selectedDateKey = null;
+  let dateStatus = {};
+  let takenSlots = {};
+
+  function key(y,m,d){
+    const dt = new Date(y, m, d);
+    return dt.getFullYear()+"-"+dt.getMonth()+"-"+dt.getDate();
+  }
+
+  async function fbGet(path){
+    const res = await fetch(FIREBASE_URL + path + ".json");
+    if(!res.ok) throw new Error("Gagal memuat (" + res.status + ")");
+    const data = await res.json();
+    return data || {};
+  }
+  async function fbPutRaw(path, value){
+    const res = await fetch(FIREBASE_URL + path + ".json", {
+      method: "PUT",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(value)
+    });
+    if(!res.ok) throw new Error("Gagal menyimpan (" + res.status + ")");
+  }
+
+  const calTitle = document.getElementById('calTitle');
+  const daysGrid = document.getElementById('daysGrid');
+  const panelArea = document.getElementById('panelArea');
+  const statusLine = document.getElementById('statusLine');
+
+  function showStatus(msg, isError){
+    statusLine.textContent = msg;
+    statusLine.className = 'status-line show' + (isError ? ' error' : '');
+    setTimeout(() => statusLine.classList.remove('show'), 2500);
+  }
+
+  function readableDate(k){
+    const [y,m,d] = k.split('-').map(Number);
+    const dt = new Date(y,m,d);
+    const days = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+    return days[dt.getDay()] + ", " + dt.getDate() + " " + monthNames[m] + " " + y;
+  }
+
+  function renderCalendar(){
+    calTitle.textContent = monthNames[viewMonth] + " " + viewYear;
+    daysGrid.innerHTML = "";
+
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const totalDays = new Date(viewYear, viewMonth+1, 0).getDate();
+
+    for(let i=0;i<firstDay;i++){
+      const empty = document.createElement('div');
+      empty.className = 'day empty';
+      daysGrid.appendChild(empty);
+    }
+
+    for(let d=1; d<=totalDays; d++){
+      const cellDate = new Date(viewYear, viewMonth, d);
+      cellDate.setHours(0,0,0,0);
+      const k = key(viewYear, viewMonth, d);
+
+      const cell = document.createElement('div');
+      cell.className = 'day';
+      cell.textContent = d;
+
+      const isPast = cellDate < today;
+      const status = dateStatus[k];
+      const isToday = cellDate.getTime() === today.getTime();
+
+      if(isToday) cell.classList.add('today');
+      if(status === 'full') cell.classList.add('full');
+      else if(status === 'libur') cell.classList.add('libur');
+      else cell.classList.add('open');
+
+      if(isPast) cell.classList.add('past');
+      if(k === selectedDateKey) cell.classList.add('selected');
+
+      cell.addEventListener('click', () => {
+        selectedDateKey = k;
+        renderCalendar();
+        renderPanel(k);
+      });
+
+      daysGrid.appendChild(cell);
+    }
+  }
+
+  async function setDateStatus(k, status){
+    try{
+      if(status === 'open') await fbPutRaw("/dateStatus/" + k, null);
+      else await fbPutRaw("/dateStatus/" + k, status);
+
+      if(status === 'open') delete dateStatus[k];
+      else dateStatus[k] = status;
+
+      showStatus("Status tanggal " + readableDate(k) + " disimpan.");
+      renderCalendar();
+      renderPanel(k);
+    }catch(e){
+      showStatus("Gagal menyimpan, cek koneksi internet.", true);
+    }
+  }
+
+  async function toggleSlot(k, t){
+    const list = takenSlots[k] ? takenSlots[k].slice() : [];
+    const idx = list.indexOf(t);
+    if(idx === -1) list.push(t); else list.splice(idx,1);
+    try{
+      await fbPutRaw("/takenSlots/" + k, list.length ? list : null);
+      takenSlots[k] = list;
+      showStatus("Jam diperbarui.");
+      renderPanel(k);
+    }catch(e){
+      showStatus("Gagal menyimpan, cek koneksi internet.", true);
+    }
+  }
+
+  function renderPanel(k){
+    const current = dateStatus[k] || 'open';
+    panelArea.innerHTML = "";
+
+    const info = document.createElement('p');
+    info.className = 'slot-empty';
+    info.innerHTML = "Mengatur: <strong>" + readableDate(k) + "</strong>";
+    panelArea.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'action-row';
+    [
+      ['Buka Kembali','open'],
+      ['Tandai Penuh / Fix','full'],
+      ['Tandai Libur','libur']
+    ].forEach(([label, val]) => {
+      const b = document.createElement('button');
+      b.className = 'action-btn' + (current === val ? ' active' : '');
+      b.textContent = label;
+      b.addEventListener('click', () => setDateStatus(k, val));
+      actions.appendChild(b);
+    });
+    panelArea.appendChild(actions);
+
+    const h3 = document.createElement('h3');
+    h3.textContent = 'Atur jam terisi';
+    panelArea.appendChild(h3);
+
+    const taken = takenSlots[k] || [];
+    const grid = document.createElement('div');
+    grid.className = 'slot-grid';
+    ALL_SLOTS.forEach(t => {
+      const el = document.createElement('div');
+      el.textContent = t;
+      el.className = 'slot' + (taken.includes(t) ? ' taken' : '');
+      el.addEventListener('click', () => toggleSlot(k, t));
+      grid.appendChild(el);
+    });
+    panelArea.appendChild(grid);
+
+    // ---- Jam custom (di luar 2 pilihan tetap) ----
+    const customTimes = taken.filter(t => !ALL_SLOTS.includes(t));
+
+    const h4 = document.createElement('h3');
+    h4.textContent = 'Jam custom / request khusus';
+    h4.style.marginTop = '18px';
+    panelArea.appendChild(h4);
+
+    if(customTimes.length > 0){
+      const customGrid = document.createElement('div');
+      customGrid.className = 'slot-grid';
+      customGrid.style.marginBottom = '10px';
+      customTimes.forEach(t => {
+        const el = document.createElement('div');
+        el.textContent = t + ' ✕';
+        el.className = 'slot taken';
+        el.title = 'Klik untuk hapus';
+        el.addEventListener('click', () => toggleSlot(k, t));
+        customGrid.appendChild(el);
+      });
+      panelArea.appendChild(customGrid);
+    } else {
+      const noneNote = document.createElement('p');
+      noneNote.className = 'slot-empty';
+      noneNote.textContent = 'Belum ada jam custom untuk tanggal ini.';
+      panelArea.appendChild(noneNote);
+    }
+
+    const addRow = document.createElement('div');
+    addRow.style.display = 'flex';
+    addRow.style.gap = '8px';
+    addRow.style.marginTop = '8px';
+
+    const customInput = document.createElement('input');
+    customInput.type = 'text';
+    customInput.placeholder = 'Contoh: 07.00 - 09.00';
+    customInput.style.flex = '1';
+    customInput.style.padding = '10px 12px';
+    customInput.style.borderRadius = '9px';
+    customInput.style.border = '1px solid var(--line)';
+    customInput.style.fontFamily = "'Manrope', sans-serif";
+    customInput.style.fontSize = '13.5px';
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'action-btn';
+    addBtn.textContent = 'Tandai Terisi';
+    addBtn.addEventListener('click', async () => {
+      const val = customInput.value.trim();
+      if(!val) return;
+      const list = takenSlots[k] ? takenSlots[k].slice() : [];
+      if(!list.includes(val)) list.push(val);
+      try{
+        await fbPutRaw("/takenSlots/" + k, list);
+        takenSlots[k] = list;
+        showStatus("Jam custom ditambahkan.");
+        renderPanel(k);
+      }catch(e){
+        showStatus("Gagal menyimpan, cek koneksi internet.", true);
+      }
+    });
+
+    addRow.appendChild(customInput);
+    addRow.appendChild(addBtn);
+    panelArea.appendChild(addRow);
+  }
+
+  document.getElementById('prevMonth').addEventListener('click', () => {
+    viewMonth--; if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+    renderCalendar();
+  });
+  document.getElementById('nextMonth').addEventListener('click', () => {
+    viewMonth++; if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+    renderCalendar();
+  });
+
+  async function boot(){
+    calTitle.textContent = "Memuat...";
+    try{
+      const [ds, ts] = await Promise.all([fbGet("/dateStatus"), fbGet("/takenSlots")]);
+      dateStatus = ds; takenSlots = ts;
+    }catch(e){
+      alert("Gagal terhubung ke database. Cek URL Firebase di kode, dan koneksi internet.");
+    }
+    renderCalendar();
+    loadHistory();
+  }
+
+  const historyArea = document.getElementById('historyArea');
+
+  async function loadHistory(){
+    historyArea.innerHTML = '<p class="slot-empty">Memuat riwayat...</p>';
+    try{
+      const res = await fetch(APPS_SCRIPT_URL + "?key=" + encodeURIComponent(SHEET_SECRET_KEY));
+      const data = await res.json();
+
+      if(data.status === "error"){
+        historyArea.innerHTML = '<p class="slot-empty">Gagal memuat: kode rahasia tidak cocok. Cek SHEET_SECRET_KEY di kode.</p>';
+        return;
+      }
+      if(!Array.isArray(data) || data.length === 0){
+        historyArea.innerHTML = '<p class="slot-empty">Belum ada booking masuk.</p>';
+        return;
+      }
+
+      const cols = ["Waktu Submit","Nama","No WA","Layanan","Lokasi","Tanggal","Jam","Catatan"];
+      let html = '<div class="history-wrap"><table class="history-table"><thead><tr>';
+      cols.forEach(c => html += "<th>" + c + "</th>");
+      html += "</tr></thead><tbody>";
+
+      data.slice(0, 50).forEach(row => {
+        html += "<tr>";
+        cols.forEach(c => {
+          let val = row[c] || "-";
+          if(c === "Waktu Submit" && val !== "-"){
+            const d = new Date(val);
+            if(!isNaN(d)) val = d.toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+          }
+          html += "<td>" + String(val).replace(/</g,"&lt;") + "</td>";
+        });
+        html += "</tr>";
+      });
+      html += "</tbody></table></div>";
+      if(data.length > 50){
+        html += '<p class="slot-empty">Menampilkan 50 booking terbaru dari total ' + data.length + '. Buka Google Sheet untuk lihat semua.</p>';
+      }
+      historyArea.innerHTML = html;
+    }catch(e){
+      console.error(e);
+      historyArea.innerHTML = '<p class="slot-empty">Gagal memuat riwayat. Cek koneksi atau URL Apps Script di kode.</p>';
+    }
+  }
+
+  document.getElementById('refreshHistory').addEventListener('click', loadHistory);
+
+  // ---- Lock screen sederhana ----
+  const lockScreen = document.getElementById('lockScreen');
+  const mainApp = document.getElementById('mainApp');
+  const pinInput = document.getElementById('pinInput');
+  const pinError = document.getElementById('pinError');
+
+  document.getElementById('pinSubmit').addEventListener('click', tryLogin);
+  pinInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') tryLogin(); });
+
+  function tryLogin(){
+    if(pinInput.value === ADMIN_PIN){
+      lockScreen.style.display = 'none';
+      mainApp.style.display = 'block';
+      boot();
+    } else {
+      pinError.style.display = 'block';
+    }
+  }
+})();
+</script>
+</body>
+</html>
