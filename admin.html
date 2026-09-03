@@ -156,6 +156,34 @@
     width:100%; padding:12px; border-radius:10px; border:none;
     background:var(--admin); color:#fff; font-weight:700; font-size:15px; cursor:pointer;
   }
+
+  /* Pricelist admin */
+  .price-row{display:flex; gap:8px; margin-bottom:8px;}
+  .price-row input{
+    padding:9px 10px; border-radius:9px; border:1px solid var(--line);
+    font-family:'Manrope', sans-serif; font-size:13.5px; background:var(--cream);
+  }
+  .price-row input.name-input{flex:2;}
+  .price-row input.price-input{flex:1;}
+  .price-row .del-btn{flex-shrink:0; padding:8px 12px;}
+  .promo-row{margin-bottom:14px;}
+  .promo-row label{
+    display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700;
+    color:var(--plum-deep); margin-bottom:8px; cursor:pointer;
+  }
+  .promo-row input[type="checkbox"]{width:16px; height:16px; accent-color:var(--admin);}
+  .promo-row input[type="text"]{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
+    font-family:'Manrope', sans-serif; font-size:13.5px; box-sizing:border-box; background:var(--cream);
+  }
+  .price-note-input{
+    width:100%; min-height:60px; padding:10px 12px; border-radius:9px;
+    border:1px solid var(--line); font-family:'Manrope', sans-serif; font-size:13.5px;
+    box-sizing:border-box; background:var(--cream); resize:vertical;
+  }
+  .save-price-btn{
+    margin-top:16px; background:var(--admin); color:#fff; border-color:var(--admin);
+  }
 </style>
 </head>
 <body>
@@ -203,6 +231,35 @@
     </div>
   </div>
 
+  <!-- KELOLA HARGA & PROMO -->
+  <div class="card">
+    <div class="cal-head">
+      <h2 style="font-size:18px;">Kelola Harga &amp; Promo</h2>
+    </div>
+    <p style="font-size:12.5px; color:#8A7A72; margin:0 0 14px;">Perubahan di sini langsung muncul realtime di halaman booking customer setelah kamu tekan Simpan.</p>
+
+    <div class="promo-row">
+      <label>
+        <input type="checkbox" id="promoActive">
+        Aktifkan banner promo bulan ini
+      </label>
+      <input type="text" id="promoText" placeholder="Contoh: Promo Agustus — diskon 10% untuk booking wisuda!">
+    </div>
+
+    <h3 style="font-size:13px;color:var(--plum-deep);margin:16px 0 10px;font-weight:700;">Paket Harga</h3>
+    <div id="pkgRows"></div>
+    <button type="button" id="addPkgBtn" class="action-btn">+ Tambah Paket</button>
+
+    <h3 style="font-size:13px;color:var(--plum-deep);margin:18px 0 10px;font-weight:700;">Tambahan (Add-on)</h3>
+    <div id="addonRows"></div>
+    <button type="button" id="addAddonBtn" class="action-btn">+ Tambah Add-on</button>
+
+    <h3 style="font-size:13px;color:var(--plum-deep);margin:18px 0 10px;font-weight:700;">Catatan (tampil di bawah daftar harga)</h3>
+    <textarea id="priceNoteInput" class="price-note-input" placeholder="Contoh: Sudah termasuk hijab do simple. Belum termasuk biaya transport (menyesuaikan lokasi)."></textarea>
+
+    <button type="button" id="savePriceBtn" class="action-btn save-price-btn">💾 Simpan Harga &amp; Promo</button>
+  </div>
+
   <div class="card">
     <div class="cal-head">
       <h2 style="font-size:18px;">Riwayat Booking</h2>
@@ -240,6 +297,21 @@
    const SHEET_SECRET_KEY = "viandeni0378";
   // =====================================================================
 
+  // Nilai default harga (dipakai kalau di database belum ada data harga sama sekali)
+  const DEFAULT_PACKAGES = [
+    { name: "Makeup Wisuda", price: 325000 },
+    { name: "Makeup Pesta", price: 400000 },
+    { name: "Makeup Engagement", price: 450000 },
+    { name: "Makeup Pengantin (Nikahan)", price: 1300000 }
+  ];
+  const DEFAULT_ADDONS = [
+    { name: "Touch up kit (dititip ke klien)", price: "Rp30.000 – 75.000" },
+    { name: "Hijab do pesta / turban style (upgrade dari simple)", price: "Rp30.000 – 75.000" },
+    { name: "Retouch standby di lokasi (per jam)", price: "Rp50.000 – 100.000/jam" },
+    { name: "Additional look (ganti riasan ke-2, misal akad → resepsi)", price: "50–70% dari harga paket utama" },
+    { name: "Family package (per orang, misal ibu pengantin)", price: "Rp150.000 – 250.000" }
+  ];
+  const DEFAULT_NOTE = "Sudah termasuk hijab do simple. Belum termasuk biaya transport (menyesuaikan lokasi).";
 
   const ALL_SLOTS = ["02:00 - 04:00", "04:30 - 06:30"];
   const monthNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -480,6 +552,132 @@
     renderCalendar();
   });
 
+  // ==== KELOLA HARGA & PROMO ====
+  let pkgList = [];
+  let addonList = [];
+
+  function renderPkgRows(){
+    const wrap = document.getElementById('pkgRows');
+    wrap.innerHTML = "";
+    pkgList.forEach((p, idx) => {
+      const row = document.createElement('div');
+      row.className = 'price-row';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'name-input';
+      nameInput.value = p.name || '';
+      nameInput.placeholder = 'Nama layanan';
+      nameInput.addEventListener('input', () => { pkgList[idx].name = nameInput.value; });
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'number';
+      priceInput.className = 'price-input';
+      priceInput.value = p.price || 0;
+      priceInput.placeholder = 'Harga (angka)';
+      priceInput.addEventListener('input', () => { pkgList[idx].price = Number(priceInput.value) || 0; });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'action-btn del-btn';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => { pkgList.splice(idx,1); renderPkgRows(); });
+
+      row.appendChild(nameInput);
+      row.appendChild(priceInput);
+      row.appendChild(delBtn);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderAddonRows(){
+    const wrap = document.getElementById('addonRows');
+    wrap.innerHTML = "";
+    addonList.forEach((a, idx) => {
+      const row = document.createElement('div');
+      row.className = 'price-row';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'name-input';
+      nameInput.value = a.name || '';
+      nameInput.placeholder = 'Nama add-on';
+      nameInput.addEventListener('input', () => { addonList[idx].name = nameInput.value; });
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'text';
+      priceInput.className = 'price-input';
+      priceInput.value = a.price || '';
+      priceInput.placeholder = 'Contoh: Rp30.000 - 75.000';
+      priceInput.addEventListener('input', () => { addonList[idx].price = priceInput.value; });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'action-btn del-btn';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => { addonList.splice(idx,1); renderAddonRows(); });
+
+      row.appendChild(nameInput);
+      row.appendChild(priceInput);
+      row.appendChild(delBtn);
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById('addPkgBtn').addEventListener('click', () => {
+    pkgList.push({ name: '', price: 0 });
+    renderPkgRows();
+  });
+  document.getElementById('addAddonBtn').addEventListener('click', () => {
+    addonList.push({ name: '', price: '' });
+    renderAddonRows();
+  });
+
+  document.getElementById('savePriceBtn').addEventListener('click', async () => {
+    try{
+      await fbPutRaw("/pricelist", {
+        packages: pkgList,
+        addons: addonList,
+        note: document.getElementById('priceNoteInput').value.trim()
+      });
+      await fbPutRaw("/promo", {
+        active: document.getElementById('promoActive').checked,
+        text: document.getElementById('promoText').value.trim()
+      });
+      showStatus("Harga & promo berhasil disimpan, langsung update di halaman customer.");
+    }catch(e){
+      showStatus("Gagal menyimpan harga, cek koneksi internet.", true);
+    }
+  });
+
+  async function loadPricelistAdmin(){
+    try{
+      const [pricelist, promo] = await Promise.all([fbGet("/pricelist"), fbGet("/promo")]);
+
+      pkgList = Array.isArray(pricelist.packages) && pricelist.packages.length
+        ? pricelist.packages
+        : DEFAULT_PACKAGES.slice();
+      addonList = Array.isArray(pricelist.addons) && pricelist.addons.length
+        ? pricelist.addons
+        : DEFAULT_ADDONS.slice();
+
+      document.getElementById('priceNoteInput').value = pricelist.note || DEFAULT_NOTE;
+      document.getElementById('promoActive').checked = !!(promo && promo.active);
+      document.getElementById('promoText').value = (promo && promo.text) || "";
+
+      renderPkgRows();
+      renderAddonRows();
+    }catch(e){
+      console.error(e);
+      pkgList = DEFAULT_PACKAGES.slice();
+      addonList = DEFAULT_ADDONS.slice();
+      document.getElementById('priceNoteInput').value = DEFAULT_NOTE;
+      renderPkgRows();
+      renderAddonRows();
+    }
+  }
+  // =====================================================================
+
   async function boot(){
     calTitle.textContent = "Memuat...";
     try{
@@ -490,6 +688,7 @@
     }
     renderCalendar();
     loadHistory();
+    loadPricelistAdmin();
   }
 
   const historyArea = document.getElementById('historyArea');
