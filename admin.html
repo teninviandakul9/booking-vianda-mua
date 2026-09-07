@@ -165,6 +165,7 @@
   }
   .price-row input.name-input{flex:2;}
   .price-row input.price-input{flex:1;}
+  .price-row input.est-input{flex:1;}
   .price-row .del-btn{flex-shrink:0; padding:8px 12px;}
   .promo-row{margin-bottom:14px;}
   .promo-row label{
@@ -183,6 +184,22 @@
   }
   .save-price-btn{
     margin-top:16px; background:var(--admin); color:#fff; border-color:var(--admin);
+  }
+  .field-hint{font-size:11.5px; color:#9A8A82; margin:-4px 0 10px;}
+
+  /* Transport admin */
+  .mode-toggle{display:flex; gap:8px; margin-bottom:14px;}
+  .mode-toggle .action-btn{flex:1;}
+  .transport-mode-block{display:none;}
+  .transport-mode-block.show{display:block;}
+  .km-fields{display:flex; gap:10px;}
+  .km-fields .field-col{flex:1;}
+  .km-fields label{
+    display:block; font-size:12px; font-weight:700; color:var(--plum-deep); margin-bottom:6px;
+  }
+  .km-fields input{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
+    font-family:'Manrope', sans-serif; font-size:13.5px; box-sizing:border-box; background:var(--cream);
   }
 </style>
 </head>
@@ -251,6 +268,7 @@
     <button type="button" id="addPkgBtn" class="action-btn">+ Tambah Paket</button>
 
     <h3 style="font-size:13px;color:var(--plum-deep);margin:18px 0 10px;font-weight:700;">Tambahan (Add-on)</h3>
+    <p class="field-hint">Kolom "Estimasi angka" dipakai untuk kalkulator total di halaman customer. Kolom "Teks harga" yang tampil ke customer di daftar harga (boleh berupa rentang, contoh: Rp30.000 - 75.000). Kalau estimasi angka dikosongkan, sistem otomatis pakai angka tertinggi dari teks harga.</p>
     <div id="addonRows"></div>
     <button type="button" id="addAddonBtn" class="action-btn">+ Tambah Add-on</button>
 
@@ -258,6 +276,40 @@
     <textarea id="priceNoteInput" class="price-note-input" placeholder="Contoh: Sudah termasuk hijab do simple. Belum termasuk biaya transport (menyesuaikan lokasi)."></textarea>
 
     <button type="button" id="savePriceBtn" class="action-btn save-price-btn">💾 Simpan Harga &amp; Promo</button>
+  </div>
+
+  <!-- KELOLA ONGKOS TRANSPORT -->
+  <div class="card">
+    <div class="cal-head">
+      <h2 style="font-size:18px;">Kelola Ongkos Transport</h2>
+    </div>
+    <p style="font-size:12.5px; color:#8A7A72; margin:0 0 14px;">Diatur di sini, muncul otomatis di kalkulator estimasi halaman booking customer. Pilih salah satu cara hitung transport di bawah.</p>
+
+    <div class="mode-toggle">
+      <button type="button" id="modeAreaBtn" class="action-btn">Berdasarkan area</button>
+      <button type="button" id="modeKmBtn" class="action-btn">Berdasarkan jarak (km)</button>
+    </div>
+
+    <div id="transportAreaBlock" class="transport-mode-block">
+      <div id="transportAreaRows"></div>
+      <button type="button" id="addTransportAreaBtn" class="action-btn">+ Tambah Area</button>
+    </div>
+
+    <div id="transportKmBlock" class="transport-mode-block">
+      <div class="km-fields">
+        <div class="field-col">
+          <label for="transportRatePerKm">Tarif per km (Rp)</label>
+          <input type="number" id="transportRatePerKm" placeholder="Contoh: 3000">
+        </div>
+        <div class="field-col">
+          <label for="transportMinFee">Minimal ongkos (Rp)</label>
+          <input type="number" id="transportMinFee" placeholder="Contoh: 50000">
+        </div>
+      </div>
+      <p class="field-hint" style="margin-top:10px;">Sesuai T&amp;C kamu: area Surabaya-Sidoarjo kisaran Rp50.000 - Rp200.000. Client isi jarak (km), sistem hitung jarak × tarif, minimal sesuai angka di atas.</p>
+    </div>
+
+    <button type="button" id="saveTransportBtn" class="action-btn save-price-btn">💾 Simpan Ongkos Transport</button>
   </div>
 
   <div class="card">
@@ -305,13 +357,25 @@
     { name: "Makeup Pengantin (Nikahan)", price: 1300000 }
   ];
   const DEFAULT_ADDONS = [
-    { name: "Touch up kit (dititip ke klien)", price: "Rp30.000 – 75.000" },
-    { name: "Hijab do pesta / turban style (upgrade dari simple)", price: "Rp30.000 – 75.000" },
-    { name: "Retouch standby di lokasi (per jam)", price: "Rp50.000 – 100.000/jam" },
-    { name: "Additional look (ganti riasan ke-2, misal akad → resepsi)", price: "50–70% dari harga paket utama" },
-    { name: "Family package (per orang, misal ibu pengantin)", price: "Rp150.000 – 250.000" }
+    { name: "Touch up kit (dititip ke klien)", price: "Rp30.000 – 75.000", priceNumber: null },
+    { name: "Hijab do pesta / turban style (upgrade dari simple)", price: "Rp30.000 – 75.000", priceNumber: null },
+    { name: "Retouch standby di lokasi (per jam)", price: "Rp50.000 – 100.000/jam", priceNumber: null },
+    { name: "Additional look (ganti riasan ke-2, misal akad → resepsi)", price: "50–70% dari harga paket utama", priceNumber: null },
+    { name: "Family package (per orang, misal ibu pengantin)", price: "Rp150.000 – 250.000", priceNumber: null }
   ];
   const DEFAULT_NOTE = "Sudah termasuk hijab do simple. Belum termasuk biaya transport (menyesuaikan lokasi).";
+
+  // Default ongkos transport, mengikuti T&C: area Surabaya-Sidoarjo Rp50.000 - Rp200.000
+  const DEFAULT_TRANSPORT = {
+    mode: 'km',
+    ratePerKm: 3000,
+    minFee: 50000,
+    areas: [
+      { name: "Surabaya (dekat)", price: 50000 },
+      { name: "Surabaya (jauh) / Sidoarjo", price: 100000 },
+      { name: "Sidoarjo jauh / luar kota dekat", price: 200000 }
+    ]
+  };
 
   const ALL_SLOTS = ["02:00 - 04:00", "04:30 - 06:30"];
   const monthNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -608,8 +672,17 @@
       priceInput.type = 'text';
       priceInput.className = 'price-input';
       priceInput.value = a.price || '';
-      priceInput.placeholder = 'Contoh: Rp30.000 - 75.000';
+      priceInput.placeholder = 'Teks harga, ex: Rp30.000 - 75.000';
       priceInput.addEventListener('input', () => { addonList[idx].price = priceInput.value; });
+
+      const estInput = document.createElement('input');
+      estInput.type = 'number';
+      estInput.className = 'est-input';
+      estInput.value = (a.priceNumber != null && a.priceNumber !== '') ? a.priceNumber : '';
+      estInput.placeholder = 'Estimasi angka (Rp)';
+      estInput.addEventListener('input', () => {
+        addonList[idx].priceNumber = estInput.value === '' ? null : Number(estInput.value);
+      });
 
       const delBtn = document.createElement('button');
       delBtn.type = 'button';
@@ -619,6 +692,7 @@
 
       row.appendChild(nameInput);
       row.appendChild(priceInput);
+      row.appendChild(estInput);
       row.appendChild(delBtn);
       wrap.appendChild(row);
     });
@@ -629,7 +703,7 @@
     renderPkgRows();
   });
   document.getElementById('addAddonBtn').addEventListener('click', () => {
-    addonList.push({ name: '', price: '' });
+    addonList.push({ name: '', price: '', priceNumber: null });
     renderAddonRows();
   });
 
@@ -658,7 +732,7 @@
         ? pricelist.packages
         : DEFAULT_PACKAGES.slice();
       addonList = Array.isArray(pricelist.addons) && pricelist.addons.length
-        ? pricelist.addons
+        ? pricelist.addons.map(a => ({ name: a.name || '', price: a.price || '', priceNumber: (a.priceNumber != null ? a.priceNumber : null) }))
         : DEFAULT_ADDONS.slice();
 
       document.getElementById('priceNoteInput').value = pricelist.note || DEFAULT_NOTE;
@@ -678,6 +752,114 @@
   }
   // =====================================================================
 
+  // ==== KELOLA ONGKOS TRANSPORT ====
+  let transportMode = 'km'; // 'areas' atau 'km'
+  let transportAreas = [];
+  let transportRatePerKm = 3000;
+  let transportMinFee = 50000;
+
+  const modeAreaBtn = document.getElementById('modeAreaBtn');
+  const modeKmBtn = document.getElementById('modeKmBtn');
+  const transportAreaBlock = document.getElementById('transportAreaBlock');
+  const transportKmBlock = document.getElementById('transportKmBlock');
+
+  function setTransportMode(mode){
+    transportMode = mode;
+    modeAreaBtn.classList.toggle('active', mode === 'areas');
+    modeKmBtn.classList.toggle('active', mode === 'km');
+    transportAreaBlock.classList.toggle('show', mode === 'areas');
+    transportKmBlock.classList.toggle('show', mode === 'km');
+  }
+  modeAreaBtn.addEventListener('click', () => setTransportMode('areas'));
+  modeKmBtn.addEventListener('click', () => setTransportMode('km'));
+
+  function renderTransportAreaRows(){
+    const wrap = document.getElementById('transportAreaRows');
+    wrap.innerHTML = "";
+    transportAreas.forEach((a, idx) => {
+      const row = document.createElement('div');
+      row.className = 'price-row';
+
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'name-input';
+      nameInput.value = a.name || '';
+      nameInput.placeholder = 'Nama area, ex: Surabaya pusat';
+      nameInput.addEventListener('input', () => { transportAreas[idx].name = nameInput.value; });
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'number';
+      priceInput.className = 'price-input';
+      priceInput.value = a.price || 0;
+      priceInput.placeholder = 'Harga (angka)';
+      priceInput.addEventListener('input', () => { transportAreas[idx].price = Number(priceInput.value) || 0; });
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'action-btn del-btn';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => { transportAreas.splice(idx,1); renderTransportAreaRows(); });
+
+      row.appendChild(nameInput);
+      row.appendChild(priceInput);
+      row.appendChild(delBtn);
+      wrap.appendChild(row);
+    });
+  }
+
+  document.getElementById('addTransportAreaBtn').addEventListener('click', () => {
+    transportAreas.push({ name: '', price: 0 });
+    renderTransportAreaRows();
+  });
+
+  document.getElementById('saveTransportBtn').addEventListener('click', async () => {
+    try{
+      const payload = transportMode === 'areas'
+        ? { mode: 'areas', areas: transportAreas.filter(a => a.name.trim() !== '') }
+        : {
+            mode: 'km',
+            ratePerKm: Number(document.getElementById('transportRatePerKm').value) || 3000,
+            minFee: Number(document.getElementById('transportMinFee').value) || 50000
+          };
+      await fbPutRaw("/transport", payload);
+      showStatus("Ongkos transport berhasil disimpan, langsung update di halaman customer.");
+    }catch(e){
+      showStatus("Gagal menyimpan ongkos transport, cek koneksi internet.", true);
+    }
+  });
+
+  async function loadTransportAdmin(){
+    try{
+      const t = await fbGet("/transport");
+      if(t && Array.isArray(t.areas) && t.areas.length){
+        transportAreas = t.areas;
+        transportRatePerKm = Number(t.ratePerKm) || DEFAULT_TRANSPORT.ratePerKm;
+        transportMinFee = Number(t.minFee) || DEFAULT_TRANSPORT.minFee;
+        setTransportMode('areas');
+      } else if(t && (t.ratePerKm || t.minFee)){
+        transportAreas = DEFAULT_TRANSPORT.areas.slice();
+        transportRatePerKm = Number(t.ratePerKm) || DEFAULT_TRANSPORT.ratePerKm;
+        transportMinFee = Number(t.minFee) || DEFAULT_TRANSPORT.minFee;
+        setTransportMode('km');
+      } else {
+        transportAreas = DEFAULT_TRANSPORT.areas.slice();
+        transportRatePerKm = DEFAULT_TRANSPORT.ratePerKm;
+        transportMinFee = DEFAULT_TRANSPORT.minFee;
+        setTransportMode('km');
+      }
+    }catch(e){
+      console.error(e);
+      transportAreas = DEFAULT_TRANSPORT.areas.slice();
+      transportRatePerKm = DEFAULT_TRANSPORT.ratePerKm;
+      transportMinFee = DEFAULT_TRANSPORT.minFee;
+      setTransportMode('km');
+    }
+    document.getElementById('transportRatePerKm').value = transportRatePerKm;
+    document.getElementById('transportMinFee').value = transportMinFee;
+    renderTransportAreaRows();
+  }
+  // =====================================================================
+
   async function boot(){
     calTitle.textContent = "Memuat...";
     try{
@@ -689,6 +871,7 @@
     renderCalendar();
     loadHistory();
     loadPricelistAdmin();
+    loadTransportAdmin();
   }
 
   const historyArea = document.getElementById('historyArea');
@@ -708,7 +891,7 @@
         return;
       }
 
-      const cols = ["Waktu Submit","Nama","No WA","Layanan","Lokasi","Tanggal","Jam","Catatan"];
+      const cols = ["Waktu Submit","Nama","No WA","Layanan","Lokasi","Tanggal","Jam","Catatan","Estimasi Paket","Estimasi Tambahan","Estimasi Total"];
       let html = '<div class="history-wrap"><table class="history-table"><thead><tr>';
       cols.forEach(c => html += "<th>" + c + "</th>");
       html += "</tr></thead><tbody>";
