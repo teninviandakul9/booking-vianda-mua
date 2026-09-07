@@ -104,6 +104,46 @@
   .addon-list li strong{color:var(--plum-deep);}
   .price-note{margin-top:14px;}
 
+  /* Estimator (paket + tambahan + transport) */
+  .estimator{margin-top:20px; border-top:1px solid var(--line); padding-top:18px;}
+  .estimator-title{
+    font-family:'Fraunces', serif; font-weight:500; font-size:17px;
+    color:var(--plum-deep); margin:0 0 4px;
+  }
+  .est-group{margin-bottom:16px;}
+  .est-label{
+    display:block; font-size:12.5px; font-weight:700; color:var(--plum-deep);
+    margin-bottom:8px;
+  }
+  .option-list{display:flex; flex-direction:column; gap:7px;}
+  .option-item{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    cursor:pointer; font-size:13.5px; background:var(--panel);
+    transition:background .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .option-item:hover{background:var(--blush);}
+  .option-item.picked{background:var(--plum); border-color:var(--plum); color:#fff;}
+  .option-item.picked .opt-price{color:#fff;}
+  .opt-name{font-weight:600;}
+  .opt-price{font-weight:700; color:var(--plum); white-space:nowrap; flex-shrink:0;}
+  .transport-row select, .transport-row input{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+    background:var(--cream); font-family:'Manrope', sans-serif; font-size:14px; color:var(--ink);
+  }
+  .transport-row select:focus, .transport-row input:focus{
+    outline:2px solid var(--gold); outline-offset:1px; background:#fff;
+  }
+  .total-box{
+    margin-top:14px; background:var(--cream); border:1px solid var(--line);
+    border-radius:12px; padding:14px 16px;
+  }
+  .total-row{display:flex; justify-content:space-between; font-size:13.5px; color:#5B4A44; padding:4px 0;}
+  .total-row.total-final{
+    border-top:1px dashed var(--line); margin-top:6px; padding-top:10px;
+    font-size:16.5px; font-weight:700; color:var(--plum-deep);
+  }
+
   /* Calendar */
   .cal-head{
     display:flex; align-items:center; justify-content:space-between;
@@ -309,6 +349,39 @@
     </div>
     <div id="priceList"><p class="slot-empty">Memuat harga...</p></div>
     <div id="priceNote" class="info-box price-note" style="display:none;"></div>
+
+    <div class="estimator" id="estimatorBlock">
+      <h3 class="estimator-title">Hitung Estimasi Total</h3>
+      <p class="slot-empty" style="margin:-2px 0 12px;">Pilih paket, tambahan (kalau ada), lalu isi lokasi/jarak untuk melihat estimasi ongkos transport. Total di bawah ini estimasi awal — harga final tetap dikonfirmasi admin lewat WhatsApp.</p>
+
+      <div class="est-group">
+        <label class="est-label">1. Pilih paket</label>
+        <div id="pkgOptions" class="option-list"><p class="slot-empty">Memuat paket...</p></div>
+      </div>
+
+      <div class="est-group" id="addonGroupWrap" style="display:none;">
+        <label class="est-label">2. Tambahan (opsional, bisa pilih lebih dari satu)</label>
+        <div id="addonOptions" class="option-list"></div>
+      </div>
+
+      <div class="est-group">
+        <label class="est-label">3. Ongkos transport</label>
+        <div class="transport-row">
+          <select id="transportArea"></select>
+          <div id="transportKmWrap" style="display:none;">
+            <input type="number" id="transportKm" min="0" step="0.1" placeholder="Jarak lokasi acara (km)">
+          </div>
+        </div>
+        <p class="slot-empty" id="transportHint" style="margin:6px 0 0;"></p>
+      </div>
+
+      <div class="total-box">
+        <div class="total-row"><span>Paket</span><span id="totalPkg">Rp0</span></div>
+        <div class="total-row"><span>Tambahan</span><span id="totalAddon">Rp0</span></div>
+        <div class="total-row"><span>Transport (estimasi)</span><span id="totalTransport">Rp0</span></div>
+        <div class="total-row total-final"><span>Estimasi Total</span><span id="totalFinal">Rp0</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="grid">
@@ -506,6 +579,14 @@
       const addons = Array.isArray(pricelist.addons) ? pricelist.addons : [];
       const note = pricelist.note || "";
 
+      // Simpan untuk kalkulator estimasi di bawah
+      currentPackages = packages;
+      currentAddons = addons.map(a => ({
+        name: a.name || "",
+        priceText: a.price || "",
+        priceNumber: (a.priceNumber != null && a.priceNumber !== "") ? Number(a.priceNumber) : parseMaxNumber(a.price)
+      }));
+
       let html = "";
       if(packages.length){
         html += '<table class="price-table"><thead><tr><th>Layanan</th><th style="text-align:right;">Harga</th></tr></thead><tbody>';
@@ -534,10 +615,172 @@
       } else {
         priceNoteEl.style.display = "none";
       }
+
+      renderEstimator();
     }catch(e){
       console.error(e);
       priceListEl.innerHTML = '<p class="slot-empty">Gagal memuat harga.</p>';
+      document.getElementById('pkgOptions').innerHTML = '<p class="slot-empty">Gagal memuat paket.</p>';
     }
+  }
+  // =====================================================================
+
+  // ==== KALKULATOR ESTIMASI (paket + tambahan + transport) ====
+  let currentPackages = [];   // [{name, price}]
+  let currentAddons = [];     // [{name, priceText, priceNumber}]
+  let transportConfig = null; // {mode:'areas', areas:[{name,price}]} atau {mode:'km', ratePerKm, minFee}
+  let pickedPackage = null;   // index di currentPackages
+  let pickedAddons = new Set(); // set index di currentAddons
+  let transportFee = 0;
+
+  function escapeHtml(s){ return String(s).replace(/</g,'&lt;'); }
+
+  // Ambil angka terbesar dari sebuah teks harga, contoh "Rp30.000 - 75.000" -> 75000
+  // Dipakai sebagai estimasi tertinggi kalau harga tambahan berupa range/teks bebas.
+  function parseMaxNumber(text){
+    if(!text) return null;
+    const matches = String(text).match(/[\d.]{3,}/g);
+    if(!matches) return null;
+    const nums = matches.map(m => parseInt(m.replace(/\./g,''), 10)).filter(n => !isNaN(n));
+    if(!nums.length) return null;
+    return Math.max(...nums);
+  }
+
+  async function loadTransportConfig(){
+    try{
+      const t = await fbGet("/transport");
+      if(t && Array.isArray(t.areas) && t.areas.length){
+        transportConfig = { mode: 'areas', areas: t.areas };
+      } else if(t && (t.ratePerKm || t.minFee)) {
+        transportConfig = { mode: 'km', ratePerKm: Number(t.ratePerKm) || 3000, minFee: Number(t.minFee) || 50000 };
+      } else {
+        // Default mengikuti info di pricelist: area Surabaya-Sidoarjo kisaran Rp50.000 - Rp200.000
+        transportConfig = { mode: 'km', ratePerKm: 3000, minFee: 50000 };
+      }
+    }catch(e){
+      transportConfig = { mode: 'km', ratePerKm: 3000, minFee: 50000 };
+    }
+  }
+
+  function renderEstimator(){
+    const pkgWrap = document.getElementById('pkgOptions');
+    pkgWrap.innerHTML = '';
+    if(!currentPackages.length){
+      pkgWrap.innerHTML = '<p class="slot-empty">Paket belum tersedia, silakan hubungi admin.</p>';
+    } else {
+      currentPackages.forEach((p, i) => {
+        const el = document.createElement('div');
+        el.className = 'option-item' + (pickedPackage === i ? ' picked' : '');
+        el.innerHTML = '<span class="opt-name">' + escapeHtml(p.name) + '</span><span class="opt-price">' + formatRupiah(p.price) + '</span>';
+        el.addEventListener('click', () => {
+          pickedPackage = (pickedPackage === i) ? null : i;
+          syncServiceField();
+          renderEstimator();
+        });
+        pkgWrap.appendChild(el);
+      });
+    }
+
+    const addonWrap = document.getElementById('addonGroupWrap');
+    const addonOptions = document.getElementById('addonOptions');
+    addonOptions.innerHTML = '';
+    if(currentAddons.length){
+      addonWrap.style.display = 'block';
+      currentAddons.forEach((a, i) => {
+        const el = document.createElement('div');
+        const picked = pickedAddons.has(i);
+        el.className = 'option-item' + (picked ? ' picked' : '');
+        const priceLabel = a.priceNumber != null ? ('≈ ' + formatRupiah(a.priceNumber)) : (a.priceText || 'tanya admin');
+        el.innerHTML = '<span class="opt-name">' + escapeHtml(a.name) + '</span><span class="opt-price">' + escapeHtml(priceLabel) + '</span>';
+        el.addEventListener('click', () => {
+          if(pickedAddons.has(i)) pickedAddons.delete(i); else pickedAddons.add(i);
+          renderEstimator();
+        });
+        addonOptions.appendChild(el);
+      });
+    } else {
+      addonWrap.style.display = 'none';
+    }
+
+    renderTransportControls();
+    computeTotal();
+  }
+
+  function renderTransportControls(){
+    if(!transportConfig) return;
+    const areaSelect = document.getElementById('transportArea');
+    const kmWrap = document.getElementById('transportKmWrap');
+    const hint = document.getElementById('transportHint');
+
+    if(transportConfig.mode === 'areas'){
+      areaSelect.style.display = 'block';
+      kmWrap.style.display = 'none';
+      if(areaSelect.dataset.built !== 'areas'){
+        areaSelect.innerHTML = '<option value="">Pilih area / lokasi acara</option>' +
+          transportConfig.areas.map((a,i) => '<option value="'+i+'">'+escapeHtml(a.name)+' — '+formatRupiah(a.price)+'</option>').join('');
+        areaSelect.dataset.built = 'areas';
+        areaSelect.addEventListener('change', () => {
+          const idx = areaSelect.value;
+          transportFee = (idx !== '') ? (Number(transportConfig.areas[idx].price) || 0) : 0;
+          computeTotal();
+        });
+      }
+      hint.textContent = 'Pilih area terdekat dengan lokasi acara Anda. Kalau area Anda belum ada di daftar, silakan tanya admin.';
+    } else {
+      areaSelect.style.display = 'none';
+      kmWrap.style.display = 'block';
+      const kmInput = document.getElementById('transportKm');
+      if(kmInput.dataset.built !== '1'){
+        kmInput.dataset.built = '1';
+        kmInput.addEventListener('input', () => {
+          const km = parseFloat(kmInput.value) || 0;
+          transportFee = km > 0 ? Math.max(transportConfig.minFee, km * transportConfig.ratePerKm) : 0;
+          computeTotal();
+        });
+      }
+      hint.textContent = 'Estimasi: minimal ' + formatRupiah(transportConfig.minFee) + ', tarif ± ' + formatRupiah(transportConfig.ratePerKm) + '/km. Harga final ditentukan admin sesuai lokasi & kondisi jalan.';
+    }
+  }
+
+  function computeTotal(){
+    const pkgPrice = (pickedPackage != null && currentPackages[pickedPackage]) ? (Number(currentPackages[pickedPackage].price) || 0) : 0;
+    let addonTotal = 0;
+    pickedAddons.forEach(i => {
+      const a = currentAddons[i];
+      if(a && a.priceNumber != null) addonTotal += a.priceNumber;
+    });
+    const total = pkgPrice + addonTotal + transportFee;
+
+    document.getElementById('totalPkg').textContent = formatRupiah(pkgPrice);
+    document.getElementById('totalAddon').textContent = formatRupiah(addonTotal);
+    document.getElementById('totalTransport').textContent = formatRupiah(transportFee);
+    document.getElementById('totalFinal').textContent = formatRupiah(total);
+  }
+
+  function syncServiceField(){
+    if(pickedPackage == null) return;
+    const pkgName = currentPackages[pickedPackage].name;
+    const select = document.getElementById('service');
+    const serviceOtherEl = document.getElementById('serviceOther');
+    const opts = Array.from(select.options).map(o => o.value);
+    if(opts.includes(pkgName)){
+      select.value = pkgName;
+      serviceOtherEl.style.display = 'none';
+      serviceOtherEl.required = false;
+    } else {
+      select.value = 'Lainnya';
+      serviceOtherEl.style.display = 'block';
+      serviceOtherEl.required = true;
+      serviceOtherEl.value = pkgName;
+    }
+  }
+
+  function getEstimatorSummaryText(){
+    const pkgName = pickedPackage != null ? currentPackages[pickedPackage].name : "-";
+    const addonNames = Array.from(pickedAddons).map(i => currentAddons[i].name);
+    const addonText = addonNames.length ? addonNames.join(", ") : "-";
+    const totalText = document.getElementById('totalFinal').textContent;
+    return { pkgName, addonText, totalText };
   }
   // =====================================================================
 
@@ -786,6 +1029,7 @@
     }
 
     const jamLine = isCustomTime ? (timeLabel + " (request, belum tentu tersedia)") : timeLabel;
+    const est = getEstimatorSummaryText();
 
     // Catat ke Google Sheet (riwayat booking), tidak menghalangi proses lain kalau gagal
     sendToSheet({
@@ -795,15 +1039,23 @@
       location: location,
       date: readableDate(selectedDateKey),
       time: jamLine,
-      notes: notes ? notes : "-"
+      notes: notes ? notes : "-",
+      estimasiPaket: est.pkgName,
+      estimasiTambahan: est.addonText,
+      estimasiTotal: est.totalText
     });
+
+    const estLine = (est.pkgName !== "-")
+      ? ("Estimasi: " + est.pkgName + (est.addonText !== "-" ? " + " + est.addonText : "") + " — Total ≈ " + est.totalText + "<br>")
+      : "";
 
     confirmBox.innerHTML =
       "<strong>Booking terkirim, menunggu konfirmasi admin.</strong><br>" +
       name + " — " + service + "<br>" +
       readableDate(selectedDateKey) + ", pukul " + jamLine + "<br>" +
+      estLine +
       "Catatan: " + (notes ? notes : "-") + "<br><br>" +
-      "Admin akan menghubungi Anda via WhatsApp untuk info DP/pembayaran. Jadwal ini <strong>belum fix</strong> sampai DP diterima." +
+      "Admin akan menghubungi Anda via WhatsApp untuk info DP/pembayaran. Jadwal ini <strong>belum fix</strong> sampai DP diterima, dan estimasi total di atas masih bisa disesuaikan admin." +
       "<br><br>Ada kendala? Silakan DM Instagram kami.";
     confirmBox.classList.add('show');
 
@@ -815,6 +1067,7 @@
   // Muat jadwal & harga dari server begitu halaman dibuka
   (async function init(){
     calTitle.textContent = "Memuat jadwal...";
+    await loadTransportConfig();
     await Promise.all([loadScheduleFromServer(), loadPricelist()]);
     renderCalendar();
   })();
